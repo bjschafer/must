@@ -64,6 +64,16 @@ pub mod tape {
     mt_blkno: c_long // current block number
   }
 
+  struct FileDescriptor {
+    fd: c_int,
+  }
+
+  impl Drop for FileDescriptor {
+    fn drop (&mut self) {
+      unsafe { libc::close(self.fd); }
+    }
+  }
+
 
   // generates function like
   // pub unsafe fn mtiocget(fd: c_int, data: *mut mtget) -> Result<c_int>
@@ -101,22 +111,13 @@ pub mod tape {
   // #define	MTIOCGET	_IOR('m', 2, struct mtget)
   pub fn status(dev: &str) -> i32 {
     let mut tape_status = Mtget::default();
-    let devstr = CString::new(dev).unwrap();
+    let fd = get_filedescriptor(dev).unwrap();
 
     unsafe {
-      let fd = libc::openat(libc::AT_FDCWD, devstr.as_ptr(), libc::O_RDONLY);
-
-      if fd < 0 {
-        println!("device not found: {} as c_char {:#?}", dev, devstr);
-        return 2;
-      }
-      match mtiocget(fd, &mut tape_status) {
-        Err(_why) => {
-          libc::close(fd)
-        },
+      match mtiocget(fd.fd, &mut tape_status) {
+        Err(why) => -2,
         Ok(result) => result,
       };
-      libc::close(fd);
     }
 
     // make sense of the data
@@ -136,26 +137,28 @@ pub mod tape {
 
   pub fn get_position(dev: &str) -> i32 {
     let mut tape_position = Mtpos::default();
-    let devstr = CString::new(dev).unwrap();
+    let fd = get_filedescriptor(dev).unwrap();
 
     unsafe {
-      let fd = libc::openat(libc::AT_FDCWD, devstr.as_ptr(), libc::O_RDONLY);
-      if fd < 0 {
-        println!("device not found: {}", dev);
-        return 2;
-      }
-
-      match mtiocpos(fd, &mut tape_position) {
+      match mtiocpos(fd.fd, &mut tape_position) {
         Err(_why) => {
-          libc::close(fd);
           return 2
         },
         Ok(result) => result,
       };
 
-      libc::close(fd);
       println!("{:?}", tape_position);
       return 0;
+    }
+  }
+
+  fn get_filedescriptor(dev: &str) -> Result<FileDescriptor, nix::Error> {
+    let devstr = CString::new(dev).unwrap();
+    unsafe {
+      match libc::openat(libc::AT_FDCWD, devstr.as_ptr(), libc::O_RDONLY) {
+        result if result < 0 => Err(nix::Error::Sys(nix::errno::Errno::EIO)),
+        result => Ok(FileDescriptor{ fd: result })
+      }
     }
   }
 

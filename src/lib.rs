@@ -10,6 +10,6 @@ mod tape;
 
 pub fn foo() {
     tape::tape::status("/dev/nst0");
-    tape::tape::fastforward("/dev/nst0", 1);
-    tape::tape::get_position("/dev/nst0");
+    // tape::tape::fastforward("/dev/nst0", 1);
+    // tape::tape::get_position("/dev/nst0");
 }
