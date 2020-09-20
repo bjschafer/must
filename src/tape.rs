@@ -70,7 +70,11 @@ pub mod tape {
 
   impl Drop for FileDescriptor {
     fn drop (&mut self) {
-      unsafe { libc::close(self.fd); }
+      unsafe {
+        if self.fd != -1 {
+          libc::close(self.fd);
+        }
+      }
     }
   }
 
