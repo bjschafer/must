@@ -23,9 +23,9 @@ pub mod tape {
   const MTISSCSI1: i64 = 0x71; /* Generic ANSI SCSI-1 tape unit */
   const MTISSCSI2: i64 = 0x72; /* Generic ANSI SCSI-2 tape unit */
 
-  const MTRESET: u8 = 0; // reset drive
-  const MTFSF: i16 = 1; // fastforward, position at fist record of next file
-  const MTTELL: u8 = 23; // tell block
+  const MTRESET: c_short = 0; // reset drive
+  const MTFSF: c_short = 1; // fastforward, position at fist record of next file
+  const MTTELL: c_short = 23; // tell block
 
   const MTIOCTOP_MAGIC: u8 = b'm';
   const MTIOCTOP_TYPE_MODE: u8 = 1;
@@ -85,32 +85,36 @@ pub mod tape {
   ioctl_read!(mtiocget, MTIOCGET_MAGIC, MTIOCGET_TYPE_MODE, Mtget);
   ioctl_read!(mtiocpos, MTIOCPOS_MAGIC, MTIOCPOS_TYPE_MODE, Mtpos);
 
+  fn do_mtioctop(dev: &str, cmd: &mut Mtop) -> i32 {
+    let fd = get_filedescriptor(dev).unwrap();
+
+    unsafe {
+      match mtioctop(fd.fd, cmd) {
+        Err(_why) => -2,
+        Ok(result) => result,
+      }
+    }
+  }
+
+  pub fn reset(dev: &str) -> i32 {
+    let mut tape_operation = Mtop {
+      mt_op: MTRESET,
+      mt_count: 1
+    };
+    
+    do_mtioctop(dev, &mut tape_operation)
+  }
+
   //     { "fsf",		MTFSF,	  do_standard, 0, FD_RDONLY, ONE_ARG,
   pub fn fastforward(dev: &str, count: i32) -> i32 {
     let mut tape_operation = Mtop {
       mt_op: MTFSF,
       mt_count: count
     };
-    let devstr = CString::new(dev).unwrap();
 
-    unsafe {
-      let fd = libc::openat(libc::AT_FDCWD, devstr.as_ptr(), libc::O_RDONLY);
-
-      if fd < 0 {
-        println!("device not found: {} as c_char {:#?}", dev, devstr);
-        return 2;
-      }
-      match mtioctop(fd, &mut tape_operation) {
-        Err(_why) => {
-          libc::close(fd)
-        },
-        Ok(result) => result,
-      };
-      libc::close(fd);
-    }
-
-    return 0;
+    do_mtioctop(dev, &mut tape_operation)
   }
+
 
   // #define	MTIOCGET	_IOR('m', 2, struct mtget)
   pub fn status(dev: &str) -> i32 {
@@ -119,7 +123,7 @@ pub mod tape {
 
     unsafe {
       match mtiocget(fd.fd, &mut tape_status) {
-        Err(why) => -2,
+        Err(_why) => -2,
         Ok(result) => result,
       };
     }
@@ -150,10 +154,10 @@ pub mod tape {
         },
         Ok(result) => result,
       };
-
-      println!("{:?}", tape_position);
-      return 0;
     }
+
+    println!("{:?}", tape_position);
+    return 0;
   }
 
   fn get_filedescriptor(dev: &str) -> Result<FileDescriptor, nix::Error> {

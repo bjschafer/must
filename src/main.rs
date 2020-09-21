@@ -1,4 +1,4 @@
 pub fn main() {
-    use must::foo;
-    foo();
+    use must::tape::tape;
+    tape::status("/dev/nst0");
 }
