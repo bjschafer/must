@@ -1,13 +1,7 @@
 use clap::{App, Arg};
-
-    //Defines the tape device to operate on.
-    // #[clap(short, long, default_value = "/dev/nst0")]
-    // device: String,
-    //Verbosity. More means louder.
-    // #[clap(short, long, parse(from_occurrences))]
-    // verbose: i32,
-
+use spinners::{Spinner, Spinners};
 use must::tape::tape;
+
 pub fn main() {
     let matches = App::new("must")
     .about("Magnetic tape interface in Rust")
@@ -41,8 +35,15 @@ pub fn main() {
     }
 
     match matches.value_of("COMMAND").unwrap() {
-        "status" => tape::status(device),
-        "fastforward" => tape::fastforward(device, 1),
+        "status" => {
+            tape::status(device)
+        },
+        "fastforward" => {
+            let sp = Spinner::new(Spinners::Line, "Executing tape command".into());
+            let res = tape::fastforward(device, 1);
+            sp.stop();
+            res
+        },
         "rewind" => tape::rewind(device),
         _ => unreachable!(),
     };
