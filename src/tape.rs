@@ -1,5 +1,5 @@
 pub mod tape {
-  use nix::ioctl_read;
+  use nix::{ioctl_read, ioctl_write_ptr};
   use nix::libc::{c_int, c_long, c_short};
   use std::ffi::CString;
 
@@ -25,6 +25,7 @@ pub mod tape {
 
   const MTRESET: c_short = 0; // reset drive
   const MTFSF: c_short = 1; // fastforward, position at fist record of next file
+  const MTREW: c_short = 6; // rewind
   const MTTELL: c_short = 23; // tell block
 
   const MTIOCTOP_MAGIC: u8 = b'm';
@@ -81,7 +82,7 @@ pub mod tape {
 
   // generates function like
   // pub unsafe fn mtiocget(fd: c_int, data: *mut mtget) -> Result<c_int>
-  ioctl_read!(mtioctop, MTIOCTOP_MAGIC, MTIOCTOP_TYPE_MODE, Mtop);
+  ioctl_write_ptr!(mtioctop, MTIOCTOP_MAGIC, MTIOCTOP_TYPE_MODE, Mtop);
   ioctl_read!(mtiocget, MTIOCGET_MAGIC, MTIOCGET_TYPE_MODE, Mtget);
   ioctl_read!(mtiocpos, MTIOCPOS_MAGIC, MTIOCPOS_TYPE_MODE, Mtpos);
 
@@ -94,6 +95,15 @@ pub mod tape {
         Ok(result) => result,
       }
     }
+  }
+
+  pub fn rewind(dev: &str) -> i32 {
+    let mut tape_operation = Mtop {
+      mt_op: MTREW,
+      mt_count: 1,
+    };
+
+    do_mtioctop(dev, &mut tape_operation)
   }
 
   pub fn reset(dev: &str) -> i32 {
