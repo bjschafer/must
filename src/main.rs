@@ -18,7 +18,8 @@ pub fn main() {
         .index(1)
         .possible_values(&[
             "status",
-            "fastforward",
+            "fastforward-record",
+            "fastforward-filemark",
             "rewind",
         ])
         .required(true),
@@ -38,7 +39,7 @@ pub fn main() {
         "status" => {
             tape::status(device)
         },
-        "fastforward" | "rewind" => do_long_tape_command(device, matches.value_of("COMMAND").unwrap()),
+        "fastforward-record" | "fastforward-filemark" | "rewind" => do_long_tape_command(device, matches.value_of("COMMAND").unwrap()),
         _ => unreachable!(),
     };
 }
@@ -46,7 +47,8 @@ pub fn main() {
 fn do_long_tape_command(device: &str, command: &str) -> i32 {
     let sp = Spinner::new(Spinners::Line, "Executing tape command".into());
     let res = match command {
-        "fastforward" => tape::fastforward(device, 1),
+        "fastforward-record" => tape::fastforward_record(device, 1),
+        "fastforward-filemark" => tape::fastforward_filemark(device, 1),
         "rewind" => tape::rewind(device),
         _ => -1,
     };

@@ -25,6 +25,10 @@ pub mod tape {
 
   const MTRESET: c_short = 0; // reset drive
   const MTFSF: c_short = 1; // fastforward, position at fist record of next file
+  const MTBSF: c_short = 2; // back space file, position before file mark
+  const MTFSR: c_short = 3; // fastforward space record
+  const MTBSR: c_short = 4; // back space record
+  const MTWEOF: c_short = 5; // write end of file (or flush)
   const MTREW: c_short = 6; // rewind
   const MTTELL: c_short = 23; // tell block
 
@@ -111,14 +115,80 @@ pub mod tape {
       mt_op: MTRESET,
       mt_count: 1
     };
-    
+
     do_mtioctop(dev, &mut tape_operation)
   }
 
-  //     { "fsf",		MTFSF,	  do_standard, 0, FD_RDONLY, ONE_ARG,
-  pub fn fastforward(dev: &str, count: i32) -> i32 {
+  /// `flush` calls `write_eof` with a zero count
+  /// to ensure data is flushed to disk
+  pub fn flush(dev: &str) -> i32 {
+    write_eof(dev, 0)
+  }
+
+  /// `write_eof` has the peculiar property that, if given
+  /// a zero count, it will ask the tape driver to flush
+  /// all data to tape. Thus, it's often a good idea
+  /// to call when wrapping up tape operations.
+  pub fn write_eof(dev: &str, count: i32) -> i32 {
+    let mut tape_operation = Mtop {
+      mt_op: MTWEOF,
+      mt_count: count,
+    };
+
+    do_mtioctop(dev, &mut tape_operation)
+  }
+
+  // From https://docs.oracle.com/cd/E19455-01/817-5430/6mksu57hg/index.html:
+  //
+  // When spacing forward over a record (either data or EOF), the tape head is
+  // positioned in the tape gap between the record just skipped and the next record.
+  //
+  // When spacing forward over file marks (EOF records), the tape head is positioned
+  // in the tape gap between the next EOF record and the record that follows it.
+  //
+  //
+  // When spacing backward over a record (either data or EOF), the tape head is positioned
+  // in the tape gap immediately preceding the tape record where the tape head is currently
+  // positioned.
+
+  // When spacing backward over file marks (EOF records), the tape head is
+  // positioned in the tape gap preceding the EOF. Thus the next read would fetch the EOF.
+  //
+  //
+  // Record skipping does not go past a file mark; file skipping does not go past the EOM
+  //
+  // After an MTFSR <huge number> command, the driver leaves the tape logically positioned
+  // before the EOF. A related feature is that EOFs remain pending until the tape is closed.
+  // For example, a program which first reads all the records of a file up to and including
+  // the EOF and then performs an MTFSF command will leave the tape positioned just after
+  // that same EOF, rather than skipping the next file.
+  // 
+  // The MTNBSF and MTFSF operations are inverses. Thus, an `MTFSF -1` is equivalent
+  // to an `MTNBSF 1`. An `MTNBSF 0` is the same as `MTFSF 0`; both position the tape
+  // device at the beginning of the current file.
+  // 
+  // MTBSF moves the tape backwards by file marks. The tape position will end on the
+  // beginning of the tape side of the desired file mark. An `MTBSF 0` will position
+  // the tape at the end of the current file, before the filemark.
+  //
+  // MTBSR and MTFSR operations perform much like space file operations, except that
+  // they move by records instead of files. Variable-length I/O devices
+  // (1/2” reel, for example) space actual records; fixed-length I/O devices space
+  // physical records (blocks). 1/4” cartridge tape, for example, spaces 512 byte
+  // physical records. The status ioctl residual count contains the number of files
+  // or records not skipped.
+  pub fn fastforward_filemark(dev: &str, count: i32) -> i32 {
     let mut tape_operation = Mtop {
       mt_op: MTFSF,
+      mt_count: count
+    };
+
+    do_mtioctop(dev, &mut tape_operation)
+  }
+
+  pub fn fastforward_record(dev: &str, count: i32) -> i32 {
+    let mut tape_operation = Mtop {
+      mt_op: MTFSR,
       mt_count: count
     };
 
