@@ -38,13 +38,19 @@ pub fn main() {
         "status" => {
             tape::status(device)
         },
-        "fastforward" => {
-            let sp = Spinner::new(Spinners::Line, "Executing tape command".into());
-            let res = tape::fastforward(device, 1);
-            sp.stop();
-            res
-        },
-        "rewind" => tape::rewind(device),
+        "fastforward" | "rewind" => do_long_tape_command(device, matches.value_of("COMMAND").unwrap()),
         _ => unreachable!(),
     };
+}
+
+fn do_long_tape_command(device: &str, command: &str) -> i32 {
+    let sp = Spinner::new(Spinners::Line, "Executing tape command".into());
+    let res = match command {
+        "fastforward" => tape::fastforward(device, 1),
+        "rewind" => tape::rewind(device),
+        _ => -1,
+    };
+    sp.stop();
+    println!();
+    res
 }
