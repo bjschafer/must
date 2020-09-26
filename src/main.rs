@@ -20,7 +20,8 @@ pub fn main() {
             "status",
             "fastforward-record",
             "fastforward-filemark",
-            "rewind",
+            "rewind-record",
+            "rewind-filemark",
         ])
         .required(true),
     )
@@ -39,19 +40,23 @@ pub fn main() {
         "status" => {
             tape::status(device)
         },
-        "fastforward-record" | "fastforward-filemark" | "rewind" => do_long_tape_command(device, matches.value_of("COMMAND").unwrap()),
+        "fastforward-record" | "fastforward-filemark" | "rewind-record" | "rewind-filemark" => {
+            do_long_tape_command(device, matches.value_of("COMMAND").unwrap())
+        },
         _ => unreachable!(),
     };
 }
 
 fn do_long_tape_command(device: &str, command: &str) -> i32 {
     let sp = Spinner::new(Spinners::Line, "Executing tape command".into());
-    let res = match command {
-        "fastforward-record" => tape::fastforward_record(device, 1),
-        "fastforward-filemark" => tape::fastforward_filemark(device, 1),
-        "rewind" => tape::rewind(device),
-        _ => -1,
+    let (move_type, direction) = match command {
+        "fastforward-record" => (tape::MovementType::Record, tape::MovementDirection::Forward),
+        "fastforward-filemark" => (tape::MovementType::FileMark, tape::MovementDirection::Forward),
+        "rewind-record" => (tape::MovementType::Record, tape::MovementDirection::Backward),
+        "rewind-filemark" => (tape::MovementType::FileMark, tape::MovementDirection::Backward),
+        _ => unreachable!(),
     };
+    let res = tape::move_space(device, move_type, direction, 1);
     sp.stop();
     println!();
     res

@@ -30,7 +30,6 @@ pub mod tape {
   const MTBSR: c_short = 4; // back space record
   const MTWEOF: c_short = 5; // write end of file (or flush)
   const MTREW: c_short = 6; // rewind
-  const MTTELL: c_short = 23; // tell block
 
   const MTIOCTOP_MAGIC: u8 = b'm';
   const MTIOCTOP_TYPE_MODE: u8 = 1;
@@ -40,6 +39,18 @@ pub mod tape {
 
   const MTIOCPOS_MAGIC: u8 = b'm';
   const MTIOCPOS_TYPE_MODE: u8 = 3;
+
+  #[derive(Debug)]
+  pub enum MovementType {
+    FileMark,
+    Record,
+  }
+
+  #[derive(Debug)]
+  pub enum MovementDirection {
+    Forward,
+    Backward,
+  }
 
   #[repr(C)]
   #[derive(Debug, Default)]
@@ -177,6 +188,23 @@ pub mod tape {
   // physical records (blocks). 1/4” cartridge tape, for example, spaces 512 byte
   // physical records. The status ioctl residual count contains the number of files
   // or records not skipped.
+
+  pub fn move_space(dev: &str, movetype: MovementType, direction: MovementDirection, count: i32) -> i32 {
+    let mt_op = match (movetype, direction) {
+      (MovementType::FileMark, MovementDirection::Forward) => MTFSF,
+      (MovementType::FileMark, MovementDirection::Backward) => MTBSF,
+      (MovementType::Record, MovementDirection::Forward) => MTFSR,
+      (MovementType::Record, MovementDirection::Backward) => MTBSR,
+    };
+
+    let mut tape_operation = Mtop {
+      mt_op: mt_op,
+      mt_count: count
+    };
+
+    do_mtioctop(dev, &mut tape_operation)
+  }
+
   pub fn fastforward_filemark(dev: &str, count: i32) -> i32 {
     let mut tape_operation = Mtop {
       mt_op: MTFSF,
@@ -209,12 +237,7 @@ pub mod tape {
     }
 
     // make sense of the data
-    let tape_type = match tape_status.mt_type {
-      MTISUNKNOWN => "Unknown",
-      MTISQIC02 => "Generic QIC-02 tape streamer",
-      MTISSCSI1 | MTISSCSI2 => "Generic ANSI SCSI tape unit",
-      _ => "Still unknown",
-    };
+    let tape_type = get_tapetype(tape_status.mt_type);
 
     // Mtget { mt_type: 114, mt_resid: 0, mt_dsreg: 1476657152,
     // mt_gstat: 16842752, mt_erreg: 0, mt_fileno: -1, mt_blkno: -1 }
@@ -247,6 +270,30 @@ pub mod tape {
         result if result < 0 => Err(nix::Error::Sys(nix::errno::Errno::EIO)),
         result => Ok(FileDescriptor{ fd: result })
       }
+    }
+  }
+
+  fn get_tapetype(tape_type: i64) -> &'static str {
+    match tape_type {
+      MTISUNKNOWN => "Unknown",
+      MTISQIC02 => "Generic QIC-02 tape streamer",
+      MTISSCSI1 | MTISSCSI2 => "Generic ANSI SCSI tape unit",
+      MTISWT5150 => "Wangtek 5150EQ; QIC-150; QIC-02",
+      MTISARCHIVE5945L2 => "Archive 5945L-2; QIC-24; QIC-02?",
+      MTISCMSJ500 => "CMS Jumbo 500 (QIC-02?)",
+      MTISTDC3610 => "Tandberg 6310; QIC-24",
+      MTISARCHIVEVP60I => "Archive VP60i; QIC-02",
+      MTISARCHIVE2150L => "Archive Viper 2150L",
+      MTISARCHIVE2060L => "Archive Viper 2060L",
+      MTISARCHIVESC499 => "Archive SC-499 QIC-36 controller",
+      MTISQIC02ALLFEATURES => "Generic QIC-02 with all features",
+      MTISWT5099EEN24 => "Wangtek 5099-een24; 60MB; QIC-24",
+      MTISTEACMT2ST => "Teac MT-2ST 155mb drive; Teac DC-1 card (Wangtek type)",
+      MTISEVEREXFT40A => "Everex FT40A (QIC-40)",
+      MTISDDS1 => "DDS device without partitions",
+      MTISDDS2 => "DDS device with partitions",
+      MTISONSTREAMSC => "OnStream SCSI tape drives (SC-x0) and SCSI emulated (DI; DP; USB)",
+      _ => "Still unknown",
     }
   }
 
