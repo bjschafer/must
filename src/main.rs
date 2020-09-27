@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::{App, Arg};
 use spinners::{Spinner, Spinners};
 use must::tape::tape;
@@ -35,6 +37,10 @@ pub fn main() {
     else {
         device = "/dev/nst0";
     }
+    if ! validate_device(device) {
+        println!("Invalid tape device {}", device);
+        std::process::exit(66);
+    }
 
     match matches.value_of("COMMAND").unwrap() {
         "status" => {
@@ -45,6 +51,10 @@ pub fn main() {
         },
         _ => unreachable!(),
     };
+}
+
+fn validate_device(device: &str) -> bool {
+    Path::new(device).exists()
 }
 
 fn do_long_tape_command(device: &str, command: &str) -> i32 {
