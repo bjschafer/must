@@ -7,6 +7,7 @@ mod tests {
 }
 
 pub mod tape;
+pub mod backup;
 
 pub fn foo() {
     tape::tape::status("/dev/nst0");
