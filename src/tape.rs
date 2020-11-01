@@ -31,6 +31,8 @@ pub mod tape {
   const MTWEOF: c_short = 5; // write end of file (or flush)
   const MTREW: c_short = 6; // rewind
 
+  const MTERASE: c_short = 13; // erase tape
+
   const MTIOCTOP_MAGIC: u8 = b'm';
   const MTIOCTOP_TYPE_MODE: u8 = 1;
 
@@ -149,7 +151,7 @@ pub mod tape {
     do_mtioctop(dev, &mut tape_operation)
   }
 
-  // From https://docs.oracle.com/cd/E19455-01/817-5430/6mksu57hg/index.html:
+  // From https://docs.oracle.com/cd/E19455-01/817-5430/6mksu57hg/index.html :
   //
   // When spacing forward over a record (either data or EOF), the tape head is
   // positioned in the tape gap between the record just skipped and the next record.
@@ -218,6 +220,15 @@ pub mod tape {
     let mut tape_operation = Mtop {
       mt_op: MTFSR,
       mt_count: count
+    };
+
+    do_mtioctop(dev, &mut tape_operation)
+  }
+
+  pub fn erase(dev: &str) -> i32 {
+    let mut tape_operation = Mtop {
+      mt_op: MTERASE,
+      mt_count: 1
     };
 
     do_mtioctop(dev, &mut tape_operation)
